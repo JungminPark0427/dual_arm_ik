@@ -1,0 +1,41 @@
+<launch>
+  <!-- 선배 gazebo.launch에서 main 노드만 빼고 그대로 가져옴 -->
+  <!-- why? main 노드가 꺼지면 전체 launch가 종료되는 문제를 막기 위해 -->
+
+  <arg name="paused" default="false"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="true"/>
+  <arg name="headless" default="false"/>
+  <arg name="debug" default="false"/>
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find dual_arm)/worlds/rrbot.world"/>
+    <arg name="debug" value="$(arg debug)" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="headless" value="$(arg headless)"/>
+  </include>
+
+  <include file="$(find dual_arm)/launch/dual_arm_control.launch" />
+
+  <param name="robot_description"
+    command="$(find xacro)/xacro --inorder '$(find dual_arm)/urdf/dual_arm.xacro'" />
+
+  <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+    args="-urdf -model dual_arm -param robot_description
+      -J Waist_joint 0
+      -J L_shoulder_pitch_joint 0
+      -J L_shoulder_roll_joint 0
+      -J L_shoulder_yaw_joint 0
+      -J L_elbow_joint 0
+      -J R_shoulder_pitch_joint 0
+      -J R_shoulder_roll_joint 0
+      -J R_shoulder_yaw_joint 0
+      -J R_elbow_joint 0"/>
+
+  <!-- main 노드 제거 — dual_arm_ik_node가 대신 제어함 -->
+  <node pkg="dual_arm_ik" type="fk_display_node" name="fk_display_node" output="screen"/>
+
+
+</launch>
