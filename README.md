@@ -82,6 +82,33 @@ rosbag record -O /tmp/ik_error.bag /dual_arm_ik/joint_error
 rostopic echo -b /tmp/ik_error.bag -p /dual_arm_ik/joint_error > /tmp/ik_error.csv
 ```
 
+
 **4. 그래프 출력**
 ```bash
-pip3 install
+pip3 install matplotlib pandas
+python3 plot_error.py
+```
+
+---
+
+## 패키지 구조
+
+```
+dual_arm_ik/
+├── src/
+│   ├── dual_arm_ik_node.cpp   # Joint Space + Cartesian DLS IK 노드
+│   └── fk_display_node.cpp    # FK 실시간 출력 노드 (터미널 2)
+├── launch/
+│   └── gazebo_ik.launch       # Gazebo + FK 노드 통합 launch
+└── CMakeLists.txt
+```
+
+---
+
+## 현재 게인 설정
+
+```cpp
+double Kp[DoF] = { 500, 500, 500, 500, 500, 500, 500, 500, 500 };
+double Kd[DoF] = { 10,  10,  10,  10,  10,  10,  10,  10,  10  };
+double torque_limit = 100.0; // Nm
+```
