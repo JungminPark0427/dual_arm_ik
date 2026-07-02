@@ -18,8 +18,7 @@
 | IK 방식 | Joint Space만 | Joint Space + **Cartesian DLS IK** |
 | 궤적 생성 | Quintic Trajectory | Quintic Trajectory (동일 적용) |
 | 입력 단위 | degree | degree (동일) |
-| 양팔 동시 제어 | 없음 | **모드 4 추가** |
-| FK 출력 터미널 | 같은 터미널 | **터미널 분리** |
+
 
 ---
 
