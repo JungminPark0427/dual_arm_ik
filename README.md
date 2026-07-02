@@ -3,10 +3,8 @@
 피노키오(Pinocchio) + DLS 알고리즘으로 구현한 듀얼암 로봇 역기구학(IK) 패키지.
 
 ## 환경
-
-- Ubuntu 20.04
-- ROS Noetic
-- Pinocchio (robotpkg-py38-pinocchio)
+- Ubuntu 20.04 + ROS Noetic
+- Pinocchio (`robotpkg-py38-pinocchio`)
 - Gazebo 11
 
 ---
@@ -21,7 +19,7 @@ catkin_make -DCMAKE_BUILD_TYPE=Release -j$(nproc) -l$(nproc)
 source ~/catkin_ws/devel/setup.bash
 ```
 
-주의: dual_arm_ik_node.cpp와 fk_display_node.cpp 안의 URDF 경로를 본인 경로로 수정해야 합니다.
+> **주의:** `dual_arm_ik_node.cpp`와 `fk_display_node.cpp` 안의 URDF 경로를 본인 경로로 수정해야 합니다.
 
 ---
 
@@ -29,17 +27,19 @@ source ~/catkin_ws/devel/setup.bash
 
 터미널 3개를 순서대로 실행합니다.
 
-터미널 1 - ROS 마스터
+**터미널 1 — ROS 마스터**
 ```bash
 roscore
 ```
 
-터미널 2 - Gazebo + FK 실시간 출력
+**터미널 2 — Gazebo + FK 실시간 출력**
 ```bash
 roslaunch dual_arm_ik gazebo_ik.launch
 ```
+Gazebo 창이 뜨고 안정되면 터미널 3으로 진행합니다.
+이 터미널에서 손끝 위치(End-Effector Pose)가 실시간 출력됩니다.
 
-터미널 3 - IK 명령 입력
+**터미널 3 — IK 명령 입력**
 ```bash
 rosrun dual_arm_ik dual_arm_ik_node
 ```
@@ -48,47 +48,40 @@ rosrun dual_arm_ik dual_arm_ik_node
 
 ## 입력 예시
 
-모드 1 - Joint Space IK
+**모드 1 — Joint Space IK** (관절 각도 9개 직접 입력, 단위: rad)
+```
 1
 0 1.0 0 0 1.0 1.0 0 0 1.0
-모드 2 - Cartesian IK 왼팔
+```
+
+**모드 2 — Cartesian IK 왼팔** (손끝 목표 위치, 단위: m)
+```
 2
 0.2 0.3 0.6
-모드 3 - Cartesian IK 오른팔
+```
+
+**모드 3 — Cartesian IK 오른팔**
+```
 3
--0.2 -0.3 0.6---
-
-## 오차 데이터 녹화 및 그래프 분석
-
-1. rosbag 녹화
-```bash
-rosbag record -O /tmp/ik_error.bag /dual_arm_ik/joint_error
-```
-
-2. CSV 변환
-```bash
-rostopic echo -b /tmp/ik_error.bag -p /dual_arm_ik/joint_error > /tmp/ik_error.csv
-```
-
-3. 그래프 출력
-```bash
-pip3 install matplotlib pandas
-python3 plot_error.py
+-0.2 -0.3 0.6
 ```
 
 ---
 
-## 패키지 구조
-dual_arm_ik/
-├── src/
-│   ├── dual_arm_ik_node.cpp
-│   └── fk_display_node.cpp
-├── launch/
-│   └── gazebo_ik.launch
-└── CMakeLists.txt---
+## 오차 데이터 녹화 및 그래프 분석
 
-## 현재 게인 설정
+**1. rosbag 녹화** (새 터미널)
+```bash
+rosbag record -O /tmp/ik_error.bag /dual_arm_ik/joint_error
+```
 
-Kp = { 500, 500, 500, 500, 500, 500, 500, 500, 500 }
-Kd = { 10,  10,  10,  10,  10,  10,  10,  10,  10  }
-torque_limit = 100 Nm
+**2. 명령 입력 후 Done. 뜨면 Ctrl+C로 저장**
+
+**3. CSV 변환**
+```bash
+rostopic echo -b /tmp/ik_error.bag -p /dual_arm_ik/joint_error > /tmp/ik_error.csv
+```
+
+**4. 그래프 출력**
+```bash
+pip3 install
