@@ -142,93 +142,107 @@ ros::Publisher error_pub = nh.advertise<std_msgs::Float64MultiArray>("/dual_arm_
     // =====================================================================
     // 모드 선택: 사용자가 터미널에서 직접 입력
     // =====================================================================
-    std::cout << "=== Dual Arm IK Controller ===" << std::endl;
-    std::cout << "Select mode:" << std::endl;
-    std::cout << "  1: Joint Space IK  (관절 각도 직접 입력)" << std::endl;
-    std::cout << "  2: Cartesian Space IK - Left Arm  (왼손끝 목표 위치 입력)" << std::endl;
-    std::cout << "  3: Cartesian Space IK - Right Arm (오른손끝 목표 위치 입력)" << std::endl;
-    int mode;
-    std::cin >> mode;
-
-    Eigen::VectorXd target_q = current_q;
-
-    if (mode == 1)
+    while (ros::ok())
     {
-        // Joint Space: 9개 관절 각도 직접 입력 (라디안)
-        std::cout << "Enter 9 joint angles (rad) [waist l_sp l_sr l_sy l_e r_sp r_sr r_sy r_e]:" << std::endl;
-        for (int i = 0; i < DoF; i++) std::cin >> target_q(i);
-        target_q = jointSpaceIK(target_q);
-    }
-    else if (mode == 2 || mode == 3)
-    {
-        // Cartesian Space: 손끝 목표 위치 입력
-        double x, y, z;
-        std::cout << "Enter target position (x y z) in meters:" << std::endl;
-        std::cin >> x >> y >> z;
-        Eigen::Vector3d target_pos(x, y, z);
+        std::cout << "\n=== Dual Arm IK Controller ===" << std::endl;
+        std::cout << "Select mode (0=종료):" << std::endl;
+        std::cout << "  1: Joint Space IK  (관절 각도 직접 입력)" << std::endl;
+        std::cout << "  2: Cartesian Space IK - Left Arm  (왼손끝 목표 위치 입력)" << std::endl;
+        std::cout << "  3: Cartesian Space IK - Right Arm (오른손끝 목표 위치 입력)" << std::endl;
+        std::cout << "  4: Cartesian Space IK - Both Arms (양팔 동시 제어)" << std::endl;
+        int mode;
+        std::cin >> mode;
 
-        pinocchio::FrameIndex ee_id = (mode == 2) ? l_EE : r_EE;
-        target_q = cartesianIK(model, data, current_q, target_pos, ee_id);
-    }
+        if (mode == 0) break;
 
-    // 계산된 관절 각도를 Gazebo에 전송 (PD제어 + 중력보상)
-// 왜 중력보상? PD만 쓰면 중력 때문에 팔이 흔들리거나 처짐
-// 피노키오로 중력 토크 계산 → PD 토크에 더해서 안정적으로 자세 유지
-ROS_INFO("Sending IK result to Gazebo...");
+        Eigen::VectorXd target_q = current_q;
 
-double Kp[DoF] = { 500, 500, 500, 500, 500, 500, 500, 500, 500 };
-double Kd[DoF] = { 10, 10, 10, 20, 20, 10, 10, 20, 20 };
-double torque_limit = 100.0;
-double target_q_dot[DoF] = {0,};
-Eigen::VectorXd prev_q = current_q;
+        if (mode == 1)
+        {
+            std::cout << "Enter 9 joint angles (rad) [waist l_sp l_sr l_sy l_e r_sp r_sr r_sy r_e]:" << std::endl;
+            for (int i = 0; i < DoF; i++) std::cin >> target_q(i);
+            target_q = jointSpaceIK(target_q);
+        }
+        else if (mode == 2 || mode == 3)
+        {
+            double x, y, z;
+            std::cout << "Enter target position (x y z) in meters:" << std::endl;
+            std::cin >> x >> y >> z;
+            Eigen::Vector3d target_pos(x, y, z);
 
+            pinocchio::FrameIndex ee_id = (mode == 2) ? l_EE : r_EE;
+            // Cartesian IK는 해당 팔만 계산하고, 나머지 관절은 현재값 유지
+            Eigen::VectorXd ik_result = cartesianIK(model, data, current_q, target_pos, ee_id);
+            target_q = ik_result;
+        }
+        else if (mode == 4)
+        {
+            // 왼팔 목표 위치 입력
+            double lx, ly, lz;
+            std::cout << "Enter LEFT arm target position (x y z) in meters:" << std::endl;
+            std::cin >> lx >> ly >> lz;
+            Eigen::Vector3d l_target(lx, ly, lz);
 
+            // 오른팔 목표 위치 입력
+            double rx, ry, rz;
+            std::cout << "Enter RIGHT arm target position (x y z) in meters:" << std::endl;
+            std::cin >> rx >> ry >> rz;
+            Eigen::Vector3d r_target(rx, ry, rz);
 
-ros::Rate control_rate(100);
-int print_cnt = 0;
+            // 왼팔 IK 먼저 계산
+            target_q = cartesianIK(model, data, current_q, l_target, l_EE);
+            // 오른팔 IK는 왼팔 결과를 초기값으로 계산
+            target_q = cartesianIK(model, data, target_q, r_target, r_EE);
+        }
+        else
+        {
+            std::cout << "잘못된 모드입니다. 다시 선택하세요." << std::endl;
+            continue;
+        }
 
-for (int i = 0; i < 3000; i++)
-{
-    ros::spinOnce();
+        // 계산된 관절 각도를 Gazebo에 전송 (PD제어 + 중력보상)
+        ROS_INFO("Sending IK result to Gazebo...");
 
-    // 현재 속도 추정
-    Eigen::VectorXd current_q_dot_est = (current_q - prev_q) * 100.0;
-    prev_q = current_q;
+        double Kp[DoF] = { 500, 500, 500, 500, 500, 500, 500, 500, 500 };
+        double Kd[DoF] = { 10, 10, 10, 10, 10, 10, 10, 10, 10 };
+        double torque_limit = 100.0;
+        double target_q_dot[DoF] = {0,};
+        Eigen::VectorXd prev_q = current_q;
+        ros::Rate control_rate(100);
 
-    // 중력 보상 토크 계산
-    // 왜? 중력이 각 관절을 아래로 당기는 힘을 피노키오로 정확히 계산해서 상쇄
-    Eigen::VectorXd gravity = pinocchio::computeGeneralizedGravity(model, data, current_q);
+        for (int i = 0; i < 3000; i++)
+        {
+            ros::spinOnce();
+            Eigen::VectorXd current_q_dot_est = (current_q - prev_q) * 100.0;
+            prev_q = current_q;
+            Eigen::VectorXd gravity = pinocchio::computeGeneralizedGravity(model, data, current_q);
+            pinocchio::forwardKinematics(model, data, current_q);
+            pinocchio::updateFramePlacements(model, data);
 
-    // FK로 현재 손끝 위치 계산 (출력용)
-    pinocchio::forwardKinematics(model, data, current_q);
-    pinocchio::updateFramePlacements(model, data);
+            for (int j = 0; j < DoF; j++) {
+                double q_error = target_q(j) - current_q(j);
+                double P_term = Kp[j] * q_error;
+                double D_term = Kd[j] * (target_q_dot[j] - current_q_dot_est(j));
+                double torque = P_term + D_term + gravity(j);
+                if (torque >  torque_limit) torque =  torque_limit;
+                if (torque < -torque_limit) torque = -torque_limit;
+                std_msgs::Float64 msg;
+                msg.data = torque;
+                pubs[j].publish(msg);
+            }
 
-    int print_cnt = 0;
+            std_msgs::Float64MultiArray error_msg;
+            error_msg.data.resize(DoF);
+            for (int j = 0; j < DoF; j++) {
+                error_msg.data[j] = target_q(j) - current_q(j);
+            }
+            error_pub.publish(error_msg);
+            control_rate.sleep();
+        }
 
-    for (int j = 0; j < DoF; j++) {
-        double q_error = target_q(j) - current_q(j);
-        double P_term = Kp[j] * q_error;
-        double D_term = Kd[j] * (target_q_dot[j] - current_q_dot_est(j));
-        double torque = P_term + D_term + gravity(j); // 중력 보상 추가
+        ROS_INFO("Done. 다음 명령을 입력하세요.");
 
-        if (torque >  torque_limit) torque =  torque_limit;
-        if (torque < -torque_limit) torque = -torque_limit;
+    } // while 루프 끝
 
-        std_msgs::Float64 msg;
-        msg.data = torque;
-        pubs[j].publish(msg);
-    }
-
-    // 오차값을 토픽으로 발행 (rqt_plot 시각화용)
-    std_msgs::Float64MultiArray error_msg;
-    error_msg.data.resize(DoF);
-    for (int j = 0; j < DoF; j++) {
-        error_msg.data[j] = target_q(j) - current_q(j);
-    }
-    error_pub.publish(error_msg);
-
-    control_rate.sleep();
-}
-    ROS_INFO("Done.");
     return 0;
 }
